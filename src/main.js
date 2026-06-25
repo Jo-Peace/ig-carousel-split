@@ -3,7 +3,9 @@ import {
   splitImage,
   canvasToBlob,
   canvasToDataUrl,
+  getTargetSize,
 } from "./splitter.js";
+import { createCropEditor } from "./crop-editor.js";
 
 const uploadZone = document.getElementById("upload-zone");
 const fileInput = document.getElementById("file-input");
@@ -15,6 +17,7 @@ const assemblyPreviewCard = document.getElementById("assembly-preview-card");
 const modePreviewCard = document.getElementById("mode-preview-card");
 const slicesCard = document.getElementById("slices-card");
 const originalPreviewImg = document.getElementById("original-preview");
+const assemblyStatic = document.getElementById("assembly-static");
 const assemblyPreviewImg = document.getElementById("assembly-preview");
 const assemblyHint = document.getElementById("assembly-hint");
 const modePreviewTitle = document.getElementById("mode-preview-title");
@@ -35,14 +38,19 @@ const slicesHint = document.getElementById("slices-hint");
 
 let sourceImage = null;
 let currentSlices = [];
-let currentSource = null;
-let profileCols = 3;
-let profileRows = 1;
 let mode = "carousel";
 let direction = "horizontal";
 let ratioKey = "1:1";
 let gridSize = "3x1";
 let downloadingAll = false;
+
+const cropEditor = createCropEditor({
+  container: document.getElementById("crop-editor"),
+  canvas: document.getElementById("crop-canvas"),
+  zoomInput: document.getElementById("crop-zoom"),
+  resetButton: document.getElementById("crop-reset"),
+  onChange: () => renderSlices(),
+});
 
 uploadZone.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
@@ -68,7 +76,7 @@ document.querySelectorAll(".mode-btn").forEach((btn) => {
     carouselControls.classList.toggle("hidden", mode !== "carousel");
     profileControls.classList.toggle("hidden", mode !== "profile");
     updateHints();
-    render();
+    updateCropUI();
   });
 });
 
@@ -78,7 +86,7 @@ document.querySelectorAll("[data-direction]").forEach((btn) => {
     document.querySelectorAll("[data-direction]").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     updateHints();
-    render();
+    updateCropUI();
   });
 });
 
@@ -87,7 +95,7 @@ document.querySelectorAll(".grid-btn").forEach((btn) => {
     gridSize = btn.dataset.grid;
     document.querySelectorAll(".grid-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    render();
+    updateCropUI();
   });
 });
 
@@ -96,19 +104,34 @@ document.querySelectorAll(".ratio-btn").forEach((btn) => {
     ratioKey = btn.dataset.ratio;
     document.querySelectorAll(".ratio-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    render();
+    updateCropUI();
   });
 });
 
 sliceCountInput.addEventListener("input", () => {
   sliceOutput.textContent = sliceCountInput.value;
-  render();
+  updateCropUI();
 });
 
 downloadAllBtn.addEventListener("click", downloadAllSequential);
 carouselPreview.addEventListener("scroll", updateDots);
 
 function getOptions() {
+  const options = {
+    mode,
+    direction,
+    count: Number(sliceCountInput.value),
+    gridSize,
+    ratioKey,
+  };
+  const crop = cropEditor.getCrop();
+  if (getTargetSize(options)) {
+    options.crop = crop;
+  }
+  return options;
+}
+
+function getBaseOptions() {
   return {
     mode,
     direction,
@@ -125,19 +148,23 @@ function updateHints() {
       direction === "horizontal"
         ? "左右滑動查看接續效果"
         : "左右滑動查看上下接續（第 1 張在左）";
-    assemblyHint.textContent = "以下為實際切割範圍，確認後再往下下載";
     slicesHint.textContent = "依序上傳到同一則 IG 輪播（第 1 張 → 第 2 張 → …）";
   } else {
     modePreviewTitle.textContent = "主頁九宮格預覽";
     previewHint.textContent = "模擬 IG 個人主頁上看到的組合效果";
-    assemblyHint.textContent = "以下為裁切後的完整組圖範圍，確認後再往下下載";
     slicesHint.textContent = "請依「發文順序」發佈（先發第 1 張，最後發完）";
   }
+
+  const hasCrop = ratioKey !== "original";
+  assemblyHint.textContent = hasCrop
+    ? "拖曳移動裁切範圍，白線為切割位置，確認後再下載"
+    : "原始比例使用完整圖片，確認後再下載";
 }
 
 async function handleFile(file) {
   try {
     sourceImage = await loadImage(file);
+    cropEditor.setImage(sourceImage);
     originalPreviewImg.src = canvasToDataUrl(toPreviewCanvas(sourceImage));
     controls.classList.remove("hidden");
     originalPreviewCard.classList.remove("hidden");
@@ -146,7 +173,7 @@ async function handleFile(file) {
     slicesCard.classList.remove("hidden");
     imageMeta.textContent = `原始尺寸：${sourceImage.width} × ${sourceImage.height} px`;
     updateHints();
-    render();
+    updateCropUI();
   } catch (error) {
     alert(error.message || "讀取圖片失敗");
   }
@@ -160,16 +187,37 @@ function toPreviewCanvas(img) {
   return canvas;
 }
 
-function render() {
+function updateCropUI() {
+  if (!sourceImage) return;
+
+  const baseOptions = getBaseOptions();
+  const hasCrop = getTargetSize(baseOptions) !== null;
+
+  cropEditor.setOptions(baseOptions);
+  document.getElementById("crop-editor").classList.toggle("hidden", !hasCrop);
+  assemblyStatic.classList.toggle("hidden", hasCrop);
+
+  if (!hasCrop) {
+    renderSlices();
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    cropEditor.draw();
+    renderSlices();
+  });
+}
+
+function renderSlices() {
   if (!sourceImage) return;
 
   const result = splitImage(sourceImage, getOptions());
   currentSlices = result.slices;
-  currentSource = result.source;
-  profileCols = result.cols ?? 0;
-  profileRows = result.rows ?? 0;
 
-  assemblyPreviewImg.src = canvasToDataUrl(currentSource);
+  if (!getTargetSize(getBaseOptions())) {
+    assemblyPreviewImg.src = canvasToDataUrl(result.source);
+  }
+
   renderModePreview(result);
   renderDownloadGrid(currentSlices);
   updateModePreviewVisibility();

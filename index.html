@@ -99,9 +99,20 @@
       <section class="card preview-card hidden" id="assembly-preview-card">
         <div class="preview-header">
           <h2>切割前預覽</h2>
-          <p id="assembly-hint">確認裁切範圍與比例後再下載</p>
+          <p id="assembly-hint">拖曳移動裁切範圍，確認後再下載</p>
         </div>
-        <div class="full-preview framed">
+        <div id="crop-editor" class="crop-editor hidden">
+          <canvas id="crop-canvas" aria-label="可拖曳調整的裁切預覽"></canvas>
+          <p class="crop-hint">拖曳移動 · 雙指縮放 · 白線為切割位置</p>
+          <div class="crop-controls">
+            <label class="zoom-label" for="crop-zoom">
+              縮放
+              <input id="crop-zoom" type="range" min="0" max="100" value="0" />
+            </label>
+            <button id="crop-reset" class="btn-secondary" type="button">重置</button>
+          </div>
+        </div>
+        <div id="assembly-static" class="full-preview framed hidden">
           <img id="assembly-preview" alt="切割效果預覽" />
         </div>
       </section>

@@ -20,28 +20,99 @@ export function loadImage(file) {
   });
 }
 
-export function splitImage(img, options) {
-  if (options.mode === "profile") {
-    return splitProfileGrid(img, options);
+export function getTargetSize(options) {
+  if (options.ratioKey === "original") {
+    return null;
   }
-  return splitCarousel(img, options);
-}
 
-export function buildPreviewCanvas(img, options) {
   if (options.mode === "profile") {
     const { cols, rows } = parseGridSize(options.gridSize);
-    return prepareProfileSource(img, cols, rows, options.ratioKey);
+    const ratio = RATIO_MAP[options.ratioKey] ?? 1;
+    return {
+      width: 1080 * cols,
+      height: Math.round((1080 / ratio) * rows),
+    };
   }
-  return prepareCarouselSource(
-    img,
-    options.direction,
-    options.count,
-    options.ratioKey
-  );
+
+  const ratio = RATIO_MAP[options.ratioKey];
+  if (!ratio) return null;
+
+  if (options.direction === "horizontal") {
+    return {
+      width: 1080 * options.count,
+      height: Math.round(1080 / ratio),
+    };
+  }
+
+  return {
+    width: 1080,
+    height: Math.round((1080 / ratio) * options.count),
+  };
 }
 
-function splitCarousel(img, { direction, count, ratioKey }) {
-  const source = prepareCarouselSource(img, direction, count, ratioKey);
+export function computeDefaultCrop(img, targetSize) {
+  const baseScale = Math.max(
+    targetSize.width / img.width,
+    targetSize.height / img.height
+  );
+  const scaledWidth = img.width * baseScale;
+  const scaledHeight = img.height * baseScale;
+
+  return {
+    scale: baseScale,
+    offsetX: (targetSize.width - scaledWidth) / 2,
+    offsetY: (targetSize.height - scaledHeight) / 2,
+  };
+}
+
+export function clampCrop(crop, img, targetSize) {
+  const minScale = Math.max(
+    targetSize.width / img.width,
+    targetSize.height / img.height
+  );
+  const scale = Math.max(minScale, Math.min(minScale * 4, crop.scale));
+  const scaledWidth = img.width * scale;
+  const scaledHeight = img.height * scale;
+
+  const minX = targetSize.width - scaledWidth;
+  const minY = targetSize.height - scaledHeight;
+
+  return {
+    scale,
+    offsetX: Math.min(0, Math.max(minX, crop.offsetX)),
+    offsetY: Math.min(0, Math.max(minY, crop.offsetY)),
+  };
+}
+
+export function renderSourceCanvas(img, targetSize, crop) {
+  const canvas = document.createElement("canvas");
+  canvas.width = targetSize.width;
+  canvas.height = targetSize.height;
+  const ctx = canvas.getContext("2d");
+  const safe = clampCrop(crop, img, targetSize);
+  ctx.drawImage(
+    img,
+    safe.offsetX,
+    safe.offsetY,
+    img.width * safe.scale,
+    img.height * safe.scale
+  );
+  return canvas;
+}
+
+export function splitImage(img, options) {
+  const targetSize = getTargetSize(options);
+  const source = targetSize
+    ? renderSourceCanvas(img, targetSize, options.crop)
+    : toCanvas(img);
+
+  if (options.mode === "profile") {
+    return splitFromSource(source, options);
+  }
+  return splitCarouselFromSource(source, options);
+}
+
+function splitCarouselFromSource(source, { direction, count }) {
   const slices = [];
   const sliceWidth =
     direction === "horizontal" ? source.width / count : source.width;
@@ -65,9 +136,8 @@ function splitCarousel(img, { direction, count, ratioKey }) {
   return { slices, source };
 }
 
-function splitProfileGrid(img, { gridSize, ratioKey }) {
+function splitFromSource(source, { gridSize }) {
   const { cols, rows } = parseGridSize(gridSize);
-  const source = prepareProfileSource(img, cols, rows, ratioKey);
   const slices = [];
   const sliceWidth = source.width / cols;
   const sliceHeight = source.height / rows;
@@ -107,32 +177,6 @@ function parseGridSize(gridSize) {
   return { cols, rows };
 }
 
-function prepareCarouselSource(img, direction, count, ratioKey) {
-  const ratio = RATIO_MAP[ratioKey];
-  if (!ratio) return toCanvas(img);
-
-  const canvas = document.createElement("canvas");
-  if (direction === "horizontal") {
-    canvas.width = 1080 * count;
-    canvas.height = Math.round(1080 / ratio);
-  } else {
-    canvas.width = 1080;
-    canvas.height = Math.round((1080 / ratio) * count);
-  }
-
-  drawImageCover(canvas.getContext("2d"), img, canvas.width, canvas.height);
-  return canvas;
-}
-
-function prepareProfileSource(img, cols, rows, ratioKey) {
-  const ratio = RATIO_MAP[ratioKey] ?? 1;
-  const canvas = document.createElement("canvas");
-  canvas.width = 1080 * cols;
-  canvas.height = Math.round((1080 / ratio) * rows);
-  drawImageCover(canvas.getContext("2d"), img, canvas.width, canvas.height);
-  return canvas;
-}
-
 function createSliceCanvas(source, sx, sy, sw, sh) {
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(sw);
@@ -148,15 +192,6 @@ function toCanvas(img) {
   canvas.height = img.height;
   canvas.getContext("2d").drawImage(img, 0, 0);
   return canvas;
-}
-
-function drawImageCover(ctx, img, destWidth, destHeight) {
-  const scale = Math.max(destWidth / img.width, destHeight / img.height);
-  const scaledWidth = img.width * scale;
-  const scaledHeight = img.height * scale;
-  const offsetX = (destWidth - scaledWidth) / 2;
-  const offsetY = (destHeight - scaledHeight) / 2;
-  ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
 }
 
 export function canvasToBlob(canvas) {
