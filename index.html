@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f0f12" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <title>IG 輪播切割器</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="logo" aria-hidden="true">▥</div>
+        <h1>IG 輪播切割器</h1>
+        <p class="subtitle">
+          一張圖切成多張，發到 Instagram 輪播時滑動可接續成完整畫面
+        </p>
+      </header>
+
+      <section class="card upload-zone" id="upload-zone">
+        <input id="file-input" type="file" accept="image/*" hidden />
+        <div class="upload-content">
+          <p class="upload-title">上傳圖片</p>
+          <p class="upload-hint">點擊或拖曳 JPG / PNG 到這裡</p>
+        </div>
+      </section>
+
+      <section class="card controls hidden" id="controls">
+        <div class="control-group">
+          <span class="label">切割方向</span>
+          <div class="segmented" role="group" aria-label="切割方向">
+            <button type="button" class="segmented-btn active" data-direction="horizontal">
+              橫向（全景左右滑）
+            </button>
+            <button type="button" class="segmented-btn" data-direction="vertical">
+              直向（長圖上下滑）
+            </button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="label" for="slice-count">切成幾張</label>
+          <div class="slice-row">
+            <input id="slice-count" type="range" min="2" max="10" value="2" />
+            <output id="slice-output">2</output>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="label">輸出比例（IG 建議 4:5）</span>
+          <div class="segmented" role="group" aria-label="輸出比例">
+            <button type="button" class="segmented-btn ratio-btn" data-ratio="4:5">4:5</button>
+            <button type="button" class="segmented-btn ratio-btn" data-ratio="1:1">1:1</button>
+            <button type="button" class="segmented-btn ratio-btn active" data-ratio="original">
+              原始
+            </button>
+          </div>
+        </div>
+
+        <p class="meta" id="image-meta"></p>
+      </section>
+
+      <section class="card preview-card hidden" id="preview-card">
+        <div class="preview-header">
+          <h2>滑動預覽</h2>
+          <p id="preview-hint">左右滑動查看接續效果</p>
+        </div>
+        <div class="carousel-preview" id="carousel-preview">
+          <div class="carousel-track" id="carousel-track"></div>
+        </div>
+        <div class="dots" id="dots"></div>
+      </section>
+
+      <section class="card slices-card hidden" id="slices-card">
+        <div class="preview-header">
+          <h2>切割結果</h2>
+          <p>每張獨立下載，依序上傳到 IG 輪播（第 1 張 → 第 2 張 → …）</p>
+        </div>
+        <div class="slices-grid" id="slices-grid"></div>
+        <p id="download-status" class="download-status hidden" role="status"></p>
+        <button id="download-all-btn" class="btn-primary" type="button">
+          逐張下載全部
+        </button>
+        <p class="download-hint">手機建議：每張下載後先儲存到相簿，再繼續下一張</p>
+      </section>
+
+      <section class="guide card">
+        <h2>效果說明</h2>
+        <ol>
+          <li><strong>橫向切割</strong>：適合寬全景圖，切成左右多張，IG 滑動時像一張橫向延伸</li>
+          <li><strong>直向切割</strong>：適合長圖、海報，切成上下多張，滑動時像一張直向延伸</li>
+          <li>每張分開下載，按順序發佈到 Instagram 輪播貼文即可</li>
+        </ol>
+      </section>
+
+      <footer class="footer">
+        <p class="developer">
+          開發者
+          <a
+            href="https://www.instagram.com/chou_pp/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >@chou_pp</a>
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
