@@ -1,12 +1,28 @@
-import { loadImage, splitImage, canvasToBlob } from "./splitter.js";
+import {
+  loadImage,
+  splitImage,
+  canvasToBlob,
+  canvasToDataUrl,
+} from "./splitter.js";
 
 const uploadZone = document.getElementById("upload-zone");
 const fileInput = document.getElementById("file-input");
 const controls = document.getElementById("controls");
-const previewCard = document.getElementById("preview-card");
+const carouselControls = document.getElementById("carousel-controls");
+const profileControls = document.getElementById("profile-controls");
+const originalPreviewCard = document.getElementById("original-preview-card");
+const assemblyPreviewCard = document.getElementById("assembly-preview-card");
+const modePreviewCard = document.getElementById("mode-preview-card");
 const slicesCard = document.getElementById("slices-card");
+const originalPreviewImg = document.getElementById("original-preview");
+const assemblyPreviewImg = document.getElementById("assembly-preview");
+const assemblyHint = document.getElementById("assembly-hint");
+const modePreviewTitle = document.getElementById("mode-preview-title");
+const carouselPreviewWrap = document.getElementById("carousel-preview-wrap");
+const profilePreviewWrap = document.getElementById("profile-preview-wrap");
 const carouselTrack = document.getElementById("carousel-track");
 const carouselPreview = document.getElementById("carousel-preview");
+const profileGrid = document.getElementById("profile-grid");
 const dotsEl = document.getElementById("dots");
 const slicesGrid = document.getElementById("slices-grid");
 const downloadAllBtn = document.getElementById("download-all-btn");
@@ -15,11 +31,17 @@ const sliceCountInput = document.getElementById("slice-count");
 const sliceOutput = document.getElementById("slice-output");
 const imageMeta = document.getElementById("image-meta");
 const previewHint = document.getElementById("preview-hint");
+const slicesHint = document.getElementById("slices-hint");
 
 let sourceImage = null;
 let currentSlices = [];
+let currentSource = null;
+let profileCols = 3;
+let profileRows = 1;
+let mode = "carousel";
 let direction = "horizontal";
-let ratioKey = "original";
+let ratioKey = "1:1";
+let gridSize = "3x1";
 let downloadingAll = false;
 
 uploadZone.addEventListener("click", () => fileInput.click());
@@ -38,15 +60,33 @@ uploadZone.addEventListener("drop", (e) => {
   if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
 });
 
+document.querySelectorAll(".mode-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    mode = btn.dataset.mode;
+    document.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    carouselControls.classList.toggle("hidden", mode !== "carousel");
+    profileControls.classList.toggle("hidden", mode !== "profile");
+    updateHints();
+    render();
+  });
+});
+
 document.querySelectorAll("[data-direction]").forEach((btn) => {
   btn.addEventListener("click", () => {
     direction = btn.dataset.direction;
     document.querySelectorAll("[data-direction]").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    previewHint.textContent =
-      direction === "horizontal"
-        ? "左右滑動查看接續效果"
-        : "左右滑動查看上下接續（第 1 張在上）";
+    updateHints();
+    render();
+  });
+});
+
+document.querySelectorAll(".grid-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    gridSize = btn.dataset.grid;
+    document.querySelectorAll(".grid-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
     render();
   });
 });
@@ -66,32 +106,90 @@ sliceCountInput.addEventListener("input", () => {
 });
 
 downloadAllBtn.addEventListener("click", downloadAllSequential);
-
 carouselPreview.addEventListener("scroll", updateDots);
+
+function getOptions() {
+  return {
+    mode,
+    direction,
+    count: Number(sliceCountInput.value),
+    gridSize,
+    ratioKey,
+  };
+}
+
+function updateHints() {
+  if (mode === "carousel") {
+    modePreviewTitle.textContent = "輪播預覽";
+    previewHint.textContent =
+      direction === "horizontal"
+        ? "左右滑動查看接續效果"
+        : "左右滑動查看上下接續（第 1 張在左）";
+    assemblyHint.textContent = "以下為實際切割範圍，確認後再往下下載";
+    slicesHint.textContent = "依序上傳到同一則 IG 輪播（第 1 張 → 第 2 張 → …）";
+  } else {
+    modePreviewTitle.textContent = "主頁九宮格預覽";
+    previewHint.textContent = "模擬 IG 個人主頁上看到的組合效果";
+    assemblyHint.textContent = "以下為裁切後的完整組圖範圍，確認後再往下下載";
+    slicesHint.textContent = "請依「發文順序」發佈（先發第 1 張，最後發完）";
+  }
+}
 
 async function handleFile(file) {
   try {
     sourceImage = await loadImage(file);
+    originalPreviewImg.src = canvasToDataUrl(toPreviewCanvas(sourceImage));
     controls.classList.remove("hidden");
-    previewCard.classList.remove("hidden");
+    originalPreviewCard.classList.remove("hidden");
+    assemblyPreviewCard.classList.remove("hidden");
+    modePreviewCard.classList.remove("hidden");
     slicesCard.classList.remove("hidden");
     imageMeta.textContent = `原始尺寸：${sourceImage.width} × ${sourceImage.height} px`;
+    updateHints();
     render();
   } catch (error) {
     alert(error.message || "讀取圖片失敗");
   }
 }
 
+function toPreviewCanvas(img) {
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  canvas.getContext("2d").drawImage(img, 0, 0);
+  return canvas;
+}
+
 function render() {
   if (!sourceImage) return;
 
-  const count = Number(sliceCountInput.value);
-  currentSlices = splitImage(sourceImage, { direction, count, ratioKey });
-  renderPreview(currentSlices);
-  renderGrid(currentSlices);
+  const result = splitImage(sourceImage, getOptions());
+  currentSlices = result.slices;
+  currentSource = result.source;
+  profileCols = result.cols ?? 0;
+  profileRows = result.rows ?? 0;
+
+  assemblyPreviewImg.src = canvasToDataUrl(currentSource);
+  renderModePreview(result);
+  renderDownloadGrid(currentSlices);
+  updateModePreviewVisibility();
 }
 
-function renderPreview(slices) {
+function updateModePreviewVisibility() {
+  const isCarousel = mode === "carousel";
+  carouselPreviewWrap.classList.toggle("hidden", !isCarousel);
+  profilePreviewWrap.classList.toggle("hidden", isCarousel);
+}
+
+function renderModePreview(result) {
+  if (mode === "carousel") {
+    renderCarouselPreview(result.slices);
+  } else {
+    renderProfilePreview(result.slices, result.cols, result.rows);
+  }
+}
+
+function renderCarouselPreview(slices) {
   carouselTrack.innerHTML = "";
   dotsEl.innerHTML = "";
 
@@ -99,8 +197,8 @@ function renderPreview(slices) {
     const slide = document.createElement("div");
     slide.className = "carousel-slide";
     const img = document.createElement("img");
-    img.src = slice.canvas.toDataURL("image/jpeg", 0.9);
-    img.alt = `第 ${slice.index} 張`;
+    img.src = canvasToDataUrl(slice.canvas);
+    img.alt = slice.label;
     const badge = document.createElement("span");
     badge.className = "slide-badge";
     badge.textContent = `${slice.index} / ${slices.length}`;
@@ -113,25 +211,50 @@ function renderPreview(slices) {
   });
 }
 
-function renderGrid(slices) {
+function renderProfilePreview(slices, cols, rows) {
+  profileGrid.innerHTML = "";
+  profileGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+  const byVisual = [...slices].sort((a, b) => a.index - b.index);
+  byVisual.forEach((slice) => {
+    const cell = document.createElement("div");
+    cell.className = "profile-cell";
+    const img = document.createElement("img");
+    img.src = canvasToDataUrl(slice.canvas);
+    img.alt = slice.label;
+    const badge = document.createElement("span");
+    badge.className = "cell-badge";
+    badge.textContent = slice.index;
+    cell.append(img, badge);
+    profileGrid.appendChild(cell);
+  });
+}
+
+function renderDownloadGrid(slices) {
   slicesGrid.innerHTML = "";
   slices.forEach((slice) => {
     const item = document.createElement("article");
     item.className = "slice-item";
-    item.dataset.index = String(slice.index);
+    item.dataset.index = String(slice.postOrder);
 
     const img = document.createElement("img");
-    img.src = slice.canvas.toDataURL("image/jpeg", 0.9);
-    img.alt = `第 ${slice.index} 張`;
+    img.src = canvasToDataUrl(slice.canvas);
+    img.alt = slice.label;
 
     const badge = document.createElement("span");
     badge.className = "slide-badge";
-    badge.textContent = `第 ${slice.index} 張`;
+    badge.textContent =
+      mode === "profile"
+        ? `${slice.label} · ${slice.postLabel}`
+        : slice.label;
 
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn-slice-download";
-    btn.textContent = `下載第 ${slice.index} 張`;
+    btn.textContent =
+      mode === "profile"
+        ? `下載 ${slice.postLabel}`
+        : `下載第 ${slice.index} 張`;
     btn.addEventListener("click", () => downloadSlice(slice, btn));
 
     item.append(img, badge, btn);
@@ -149,7 +272,8 @@ function updateDots() {
 
 async function downloadSlice(slice, button) {
   const blob = await canvasToBlob(slice.canvas);
-  const filename = `ig-carousel-${String(slice.index).padStart(2, "0")}.jpg`;
+  const prefix = mode === "profile" ? "ig-profile" : "ig-carousel";
+  const filename = `${prefix}-${String(slice.postOrder).padStart(2, "0")}.jpg`;
   triggerDownload(blob, filename);
 
   if (button) {
@@ -183,17 +307,19 @@ async function downloadAllSequential() {
 
   for (let i = 0; i < currentSlices.length; i++) {
     const slice = currentSlices[i];
-    const item = slicesGrid.querySelector(`[data-index="${slice.index}"]`);
+    const item = slicesGrid.querySelector(`[data-index="${slice.postOrder}"]`);
     const btn = item?.querySelector(".btn-slice-download");
 
     downloadStatus.classList.remove("hidden");
-    downloadStatus.textContent = `請儲存第 ${slice.index} 張（共 ${currentSlices.length} 張）`;
+    downloadStatus.textContent =
+      mode === "profile"
+        ? `請儲存 ${slice.postLabel}（共 ${currentSlices.length} 張）`
+        : `請儲存第 ${slice.index} 張（共 ${currentSlices.length} 張）`;
     item?.scrollIntoView({ behavior: "smooth", block: "center" });
     item?.classList.add("highlight");
     btn?.classList.add("pulse");
 
     await downloadSlice(slice, btn);
-
     await wait(1200);
     item?.classList.remove("highlight");
     btn?.classList.remove("pulse");

@@ -8,17 +8,15 @@
     />
     <meta name="theme-color" content="#0f0f12" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <title>IG 輪播切割器</title>
+    <title>IG 圖片切割器</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div class="page">
       <header class="hero">
         <div class="logo" aria-hidden="true">▥</div>
-        <h1>IG 輪播切割器</h1>
-        <p class="subtitle">
-          一張圖切成多張，發到 Instagram 輪播時滑動可接續成完整畫面
-        </p>
+        <h1>IG 圖片切割器</h1>
+        <p class="subtitle">輪播接續、個人主頁九宮格，一張圖切成多張</p>
       </header>
 
       <section class="card upload-zone" id="upload-zone">
@@ -31,54 +29,109 @@
 
       <section class="card controls hidden" id="controls">
         <div class="control-group">
-          <span class="label">切割方向</span>
-          <div class="segmented" role="group" aria-label="切割方向">
-            <button type="button" class="segmented-btn active" data-direction="horizontal">
-              橫向（全景左右滑）
+          <span class="label">使用情境</span>
+          <div class="segmented" role="group" aria-label="使用情境">
+            <button type="button" class="segmented-btn mode-btn active" data-mode="carousel">
+              輪播貼文
             </button>
-            <button type="button" class="segmented-btn" data-direction="vertical">
-              直向（長圖上下滑）
+            <button type="button" class="segmented-btn mode-btn" data-mode="profile">
+              個人主頁九宮格
             </button>
           </div>
         </div>
 
-        <div class="control-group">
-          <label class="label" for="slice-count">切成幾張</label>
-          <div class="slice-row">
-            <input id="slice-count" type="range" min="2" max="10" value="2" />
-            <output id="slice-output">2</output>
+        <div id="carousel-controls">
+          <div class="control-group">
+            <span class="label">切割方向</span>
+            <div class="segmented" role="group">
+              <button type="button" class="segmented-btn active" data-direction="horizontal">
+                橫向（全景左右滑）
+              </button>
+              <button type="button" class="segmented-btn" data-direction="vertical">
+                直向（長圖上下滑）
+              </button>
+            </div>
+          </div>
+          <div class="control-group">
+            <label class="label" for="slice-count">切成幾張</label>
+            <div class="slice-row">
+              <input id="slice-count" type="range" min="2" max="10" value="2" />
+              <output id="slice-output">2</output>
+            </div>
           </div>
         </div>
 
+        <div id="profile-controls" class="hidden">
+          <div class="control-group">
+            <span class="label">九宮格版面（IG 為 3 欄）</span>
+            <div class="segmented grid-options" role="group">
+              <button type="button" class="segmented-btn grid-btn active" data-grid="3x1">3×1</button>
+              <button type="button" class="segmented-btn grid-btn" data-grid="3x2">3×2</button>
+              <button type="button" class="segmented-btn grid-btn" data-grid="3x3">3×3</button>
+              <button type="button" class="segmented-btn grid-btn" data-grid="3x4">3×4</button>
+            </div>
+          </div>
+          <p class="meta note">主頁組圖需依「發文順序」發佈，工具會自動標示</p>
+        </div>
+
         <div class="control-group">
-          <span class="label">輸出比例（IG 建議 4:5）</span>
-          <div class="segmented" role="group" aria-label="輸出比例">
+          <span class="label">輸出比例（主頁建議 1:1）</span>
+          <div class="segmented" role="group">
             <button type="button" class="segmented-btn ratio-btn" data-ratio="4:5">4:5</button>
-            <button type="button" class="segmented-btn ratio-btn" data-ratio="1:1">1:1</button>
-            <button type="button" class="segmented-btn ratio-btn active" data-ratio="original">
-              原始
-            </button>
+            <button type="button" class="segmented-btn ratio-btn active" data-ratio="1:1">1:1</button>
+            <button type="button" class="segmented-btn ratio-btn" data-ratio="original">原始</button>
           </div>
         </div>
 
         <p class="meta" id="image-meta"></p>
       </section>
 
-      <section class="card preview-card hidden" id="preview-card">
+      <section class="card preview-card hidden" id="original-preview-card">
         <div class="preview-header">
-          <h2>滑動預覽</h2>
+          <h2>原始圖片</h2>
+          <p>上傳的完整圖片</p>
+        </div>
+        <div class="full-preview">
+          <img id="original-preview" alt="原始圖片預覽" />
+        </div>
+      </section>
+
+      <section class="card preview-card hidden" id="assembly-preview-card">
+        <div class="preview-header">
+          <h2>切割前預覽</h2>
+          <p id="assembly-hint">確認裁切範圍與比例後再下載</p>
+        </div>
+        <div class="full-preview framed">
+          <img id="assembly-preview" alt="切割效果預覽" />
+        </div>
+      </section>
+
+      <section class="card preview-card hidden" id="mode-preview-card">
+        <div class="preview-header">
+          <h2 id="mode-preview-title">輪播預覽</h2>
           <p id="preview-hint">左右滑動查看接續效果</p>
         </div>
-        <div class="carousel-preview" id="carousel-preview">
-          <div class="carousel-track" id="carousel-track"></div>
+        <div id="carousel-preview-wrap">
+          <div class="carousel-preview" id="carousel-preview">
+            <div class="carousel-track" id="carousel-track"></div>
+          </div>
+          <div class="dots" id="dots"></div>
         </div>
-        <div class="dots" id="dots"></div>
+        <div id="profile-preview-wrap" class="hidden">
+          <div class="profile-mock">
+            <div class="profile-mock-header">
+              <span class="profile-avatar"></span>
+              <span class="profile-name">your_profile</span>
+            </div>
+            <div class="profile-grid" id="profile-grid"></div>
+          </div>
+        </div>
       </section>
 
       <section class="card slices-card hidden" id="slices-card">
         <div class="preview-header">
-          <h2>切割結果</h2>
-          <p>每張獨立下載，依序上傳到 IG 輪播（第 1 張 → 第 2 張 → …）</p>
+          <h2>確認後下載</h2>
+          <p id="slices-hint">預覽沒問題再下載，每張獨立儲存</p>
         </div>
         <div class="slices-grid" id="slices-grid"></div>
         <p id="download-status" class="download-status hidden" role="status"></p>
@@ -89,11 +142,11 @@
       </section>
 
       <section class="guide card">
-        <h2>效果說明</h2>
+        <h2>兩種效果差在哪？</h2>
         <ol>
-          <li><strong>橫向切割</strong>：適合寬全景圖，切成左右多張，IG 滑動時像一張橫向延伸</li>
-          <li><strong>直向切割</strong>：適合長圖、海報，切成上下多張，滑動時像一張直向延伸</li>
-          <li>每張分開下載，按順序發佈到 Instagram 輪播貼文即可</li>
+          <li><strong>輪播貼文</strong>：同一則貼文內左右滑動接續（假輪播真一圖）</li>
+          <li><strong>個人主頁九宮格</strong>：分成多則貼文，在主頁上拼成完整大圖</li>
+          <li>概念類似（一圖切多片），但發佈方式不同</li>
         </ol>
       </section>
 
